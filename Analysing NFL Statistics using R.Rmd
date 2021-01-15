@@ -1,0 +1,268 @@
+## Required packages 
+
+```{r}
+# Required packages
+library(readr)
+library(dplyr)
+library(tidyr)
+library(outliers)
+```
+
+## Executive Summary 
+
+Data preprocessing is a process and the collection of operations needed to prepare all forms of untidy data (incomplete, noisy and inconsistent data) for statistical analysis. It is an important step in statistical analysis and it involves five major tasks: 
+Get, Understand, Tidy & Manipulate, Scan and Transform. 
+In this assignement we have imported the two datasets using readr functions. Next we created a suitable subset from the two datasets,sorted the columns in correct order and summarised them to gain information.The datasets were then merged using left join and its class and structure was checked. The columns were converted to date and factor where necessary.
+To check the tidyness we used the tidy data principles and seperated the PlayerId column into Name and Id.The data was then manipulated uisng the mutate() function and creating a new column to calculate the years of experience of the players.Then we scanned all the columns or missing values and decided to impute the Height and Weight columns uisng the mean() function. The outliers in the numerical variables were detected using Tukeys method by plotting a box plot as well as the z score method to identify the actual number of outliers. As they were extreme values we handled it using capping instead of exculding them.
+In the last step,the weight variable was transformed using the two log tranformations ln and log10 to reduce the right skewness and conver it to a normal distribution which can make it suitable for analysis.
+
+## Data 
+
+The dataset that has been selected for this assignment is the NFL Statistics dataset which has been downloaded from Kaggle.com,an open data source. NFL refers to National Football League and is one of the four major professional sports leagues in North America.The datasets used here can be found at the URL:
+# https://www.kaggle.com/kendallgillies/nflstatistics/home <br>
+The first main group of statistics is the basic statistics provided for each player. This data is stored in the CSV file titled "Basic_Stats.csv" along with the player's name and unique identifier.
+The data pulled for each player is as follows:
+Number,Position,Current Team,Height,Weight,Age,Birthday,Birth Place,College Attended,High School Attended,High School Location,Experience.<br>
+The second main group of statistics gathered for each player are their career statistics. While each player has a main position they play, they will have statistics in other areas; therefore, the career statistics are divided into statistics types.Here we have taken into consideration the career statistics of Defensive players which is stored in "Career_Stats_Defensive.csv" and has following variables:
+Player Id,Name,Position,Year,Team,Games Played,Total Tackles,Solo Tackles,Assisted Tackles,Sacks,Safties,Passes Defended,Ints,Ints for TDs,Int Yards,Yards Per Int,Longest Int Return <br>
+The two csv files have been imported into R using the function read_csv() from library readr.My intent behind using this function is it identifies the variable data types and is faster compared to BaseR functions. The output of the head() function is a table which shows the columns of the data frame and the types of data.
+
+```{r}
+# Import the first dataset
+basic_stats <- read_csv("Basic_Stats.csv")
+head(basic_stats)
+```
+
+
+```{r}
+# Import the second dataset
+defensive <- read_csv("Career_Stats_Defensive.csv")
+head(defensive)
+```
+
+Now we take the subset of both the datasets keeping only useful variables for preprocessing as the other columns just have very insignificant data which does not contribute much to understand the career statitistics of the defensive players.
+The columns being incuded fromm basic_stats are Player Id,Name,Birth Place,College,Current Status,Experience,Height and Weight. 
+
+```{r}
+# Subset and Sort the first dataset
+basic_subset <- basic_stats[ ,c(13,11,2,3,4,5,7,8,15)]
+basic_subset
+```
+
+Similarly for the second dataset the variables are Player Id, Name,Year,Team and Games Played. Now the two datasets provide clarity and ease the preprocessing steps.
+
+```{r}
+# Subset and Sort the second dataset
+defensive_subset <- defensive[ ,-c(3,7:17)]
+defensive_subset
+```
+
+Now to understand the number of years the players played and the number of games played by them we can summarise the data by grouping the data on their Player Id. This makes it useful for interpretation and removes any duplicates.
+
+```{r}
+# This is the R chunk for the Data Section
+defensive_subset1 <- defensive_subset  %>% group_by(`Player Id`) %>% 
+  summarise(Start_Year = min(Year, na.rm = FALSE),
+          End_Year = max(Year, na.rm = FALSE),
+          Games_Played = sum(`Games Played`, na.rm = FALSE)
+         )
+head(defensive_subset1)
+```
+
+Merging the two datasets as NFL_final uisng the left_join() function on the key variable "Player Id". So now we have total 17,172 observations with 12 columns. We could have also used inner_join() to make the dataset small and but then we would get only that information which are common to both the datasets , so thought of keeping all the records.
+```{r}
+# Merging the datasets
+NFL_final <- basic_subset %>% left_join(defensive_subset1, by = "Player Id")
+NFL_final
+```
+
+## Understand 
+The str() function shows that they dataset contains datatypes like character and numerics.The "Birthday" column is actually a date but has been read as character so we need to use the as.Date() function to convert the same.
+Secondly the "Current Status" column which is a character needs to be converted to factor as it represents the two stages "Active" and "Retired".
+The "Experience" variable is also converted to factor from character and appropriate levels and labels have been assigned.
+
+```{r}
+# Check the structure and class of the dataset and convert the datatypes of the variables
+
+str(NFL_final)
+
+class(NFL_final$Birthday)
+NFL_final$Birthday <- as.Date(NFL_final$Birthday,format("%m/%d/%Y"))
+class(NFL_final$Birthday)
+
+class(NFL_final$`Current Status`)
+NFL_final$`Current Status` <- as.factor(NFL_final$`Current Status`)
+class(NFL_final$`Current Status`)
+
+head(NFL_final$Experience)
+class(NFL_final$Experience)
+NFL_final$Experience <- factor(NFL_final$Experience,levels = c("Rookie","0 Season","1 Season","1st season","2 Seasons","2nd season","3 Seasons","3rd season","4 Seasons","4th season","5 Seasons","5th season","6 Seasons","6th season","7 Seasons","7th season","8 Seasons","8th season","9 Seasons","9th season","10 Seasons","10th season",  "11 Seasons","11th season",  "12 Seasons","13 Seasons","14 Seasons","14th season",  "17 Seasons","18 Seasons","18th season"),labels = c("Rookie","0 Season", "1 Season", "1 Season", "2 Seasons","2 Seasons","3 Seasons","3 Seasons","4 Seasons","4 Seasons","5 Seasons","5 Seasons","6 Seasons","6 Seasons","7 Seasons","7 Seasons","8 Seasons","8 Seasons","9 Seasons","9 Seasons","10 Seasons","10 Seasons","11 Seasons","11 Seasons","12 Seasons","13 Seasons","14 Seasons","14 Seasons","17 Seasons","18 Seasons","18 Seasons"),ordered = TRUE)
+class(NFL_final$Experience)
+head(NFL_final$Experience)
+```
+
+##	Tidy & Manipulate Data I 
+
+The tidy data principles are:
+1. Each variable must have its own column.
+2. Each observation must have its own row.
+3. Each value must have its own cell.
+
+If we check the "Player Id" column we see that the Name and Id of the players are clubbed together in one column. We can make the dataset tidy by using the separate() function in the tidyr library.
+
+```{r}
+# Tidy the data
+NFLSepData <- NFL_final %>% separate(`Player Id`, into = c("Name", "Id"), sep = "/")
+head(NFLSepData)
+```
+
+##	Tidy & Manipulate Data II 
+
+The actual career experience of a player can be calculated by creating a new column called Years_of_Experience and finding the difference between the End and Start year of their career. Now some players have started and left in the same year which makes their experience zero which would be incorrect. Hence adding 1 to the difference so that both End year and Start year of the players is included and the results are accurate. To achieve this we use the mutate() function from the dplyr library.
+
+```{r}
+# Manipulating th data to calculate years of experience of the defensive players
+NFLSepData <- NFLSepData %>% mutate(Years_of_Experience = (End_Year - Start_Year) +1)
+NFLSepData
+```
+
+##	Scan I 
+
+Now we scan all the columns for missing values using the function colSums() which gives the missing values in every column of the data. The missing values in the columns - Birth Place,Birthday,College,Start_Year,End_Year, Games Played and Years_of_Experience 
+can be kept as it is because the data for them has not been recorded so instead of removing them and losing data it is better to keep them. We impute the missing values for Height and Weight numeric variables using their mean. To find the position of the missing values we use the which() function.mean() function can be used to replace the missing values.
+
+```{r}
+# Find the missing values and impute them
+colSums(is.na(NFLSepData))
+#Positions of missing values
+which(is.na(NFLSepData$`Height (inches)`))
+#impute using mean function
+NFLSepData$`Height (inches)`[is.na(NFLSepData$`Height (inches)`)] <- mean(NFLSepData$`Height (inches)`, na.rm = TRUE)
+
+which(is.na(NFLSepData$`Weight (lbs)`))
+
+NFLSepData$`Weight (lbs)`[is.na(NFLSepData$`Weight (lbs)`)] <- 
+mean(NFLSepData$`Weight (lbs)`, na.rm = TRUE)
+#check that there are no more missing values in height and weight columns
+colSums(is.na(NFLSepData))
+```
+
+Now we scan all the columns to check if there are any infinite or NaN values using a function called is special.
+```{r}
+# Identifying if there are any special values
+
+is.special <- function(x){
+if (is.numeric(x)) (is.infinite(x) | is.nan(x))
+}
+sapply(NFLSepData,  function(x) sum(is.special(x)))
+```
+We see that there are no special values in any of the columns.
+
+##	Scan II
+
+To scan the first numeric data Height  for outliers we plot a boxplot.This is the Tukeys's method of outlier detection which is a non parmetric way of detecting outliers. The second way z-score method is a parametric way and thus will provide us the exact number of outliers so that we can handle them. Using which(), we can also find the locations of the z-scores whose absolute value is greater than 3 and length can help to find the exact number of outliers
+
+```{r}
+# Detecting outliers in the Height variable
+NFLSepData$`Height (inches)` %>%  boxplot(main="Box Plot of Height", ylab="Inches", col = "grey")
+
+z.scores <- NFLSepData$`Height (inches)` %>%  scores(type = "z")
+z.scores %>% summary()
+
+which( abs(z.scores) >3 )
+#number of outliers
+length(which( abs(z.scores) >3 ))
+```
+
+The summary() functions shows the minimum value -4.8734 and maximum value as 3.3084 for the Height variable.According to the z-score method, the height variable has 10 outliers.
+Now these values are not outliers but extreme values so instead of excluding them we can handle them using the capping method.
+
+```{r}
+#Capping height variables
+cap <- function(x){
+    quantiles <- quantile( x, c(.05, 0.25, 0.75, .95 ) )
+    x[ x < quantiles[2] - 1.5*IQR(x) ] <- quantiles[1]
+    x[ x > quantiles[3] + 1.5*IQR(x) ] <- quantiles[4]
+    x
+}
+
+height_capped <- NFLSepData$`Height (inches)` %>% cap()
+height_capped
+
+height_capped %>%  boxplot(main="Box Plot of Height", ylab="Inches", col = "grey")
+```
+The boxplot now shows that there are no outliers for the height variable.
+
+To scan the second numeric data Weight for outliers we plot a boxplot.This is the Tukeys's method of outlier detection which is a non parmetric way of detecting outliers. The second way z-score method is a parametric way and thus will provide us the exact number of outliers so that we can handle them.
+
+```{r}
+# Detecting outliers in the Weight variable
+NFLSepData$`Weight (lbs)` %>%  boxplot(main="Box Plot of Weight", ylab="Inches", col = "grey")
+
+z.scores <- NFLSepData$`Weight (lbs)` %>%  scores(type = "z")
+z.scores %>% summary()
+
+which( abs(z.scores) >3 )
+length(which( abs(z.scores) >3 ))
+
+```
+The summary() functions shows the minimum value -5.3486 and maximum value as 3.4165 for the Weight variable.According to the z-score method, the height variable has 36 outliers.
+Now these values are not outliers but extreme values so instead of excluding them we can handle them using the capping method.
+
+```{r}
+#Capping weight variable
+
+cap <- function(x){
+    quantiles <- quantile( x, c(.05, 0.25, 0.75, .95 ) )
+    x[ x < quantiles[2] - 1.5*IQR(x) ] <- quantiles[1]
+    x[ x > quantiles[3] + 1.5*IQR(x) ] <- quantiles[4]
+    x
+}
+
+weight_capped <- NFLSepData$`Weight (lbs)` %>% cap()
+weight_capped
+
+weight_capped %>%  boxplot(main="Box Plot of Weight", ylab="Inches", col = "grey")
+```
+The boxplot now shows that there are no outliers for the height variable.
+
+##	Transform 
+
+Data transformation is often a requisite to further proceed with statistical analysis. Below are the situations where we might need transformations:
+
+1. To change the scale of a variable or standardise the values of a variable for better understanding.<br>
+2. To transform complex non-linear relationships into linear relationships.<br>
+3. To reduce skewness and/or heterogeneity of variance and make it a normal distribution.<br> 
+In statistical inference, symmetric (normal) distribution is preferred over skewed distribution. Also, some statistical analysis techniques (i.e., parametric tests, linear regression, etc) requires normal distribution of variables and homogeneity of variances. So, whenever we have a skewed distribution and/or heterogeneous of variances, we can use transformations which can reduce skewness and/or heterogeneity of variances
+
+```{r}
+# Histogram for the weight data distribution
+weight_capped %>% summary()
+hist(weight_capped)
+```
+
+The data in the weight-capped histogram seems to be right skewed hence we apply the Log transformations First the natural logarithm ln transformation and then the log 10 transformation.
+
+```{r}
+# Transfroming the data using log ln transformation
+lnWeight <- log(weight_capped)
+hist(lnWeight)
+```
+
+
+```{r}
+# Transfroming the data using log 10 transformation
+logWeight <- log10(weight_capped)
+hist(logWeight)
+```
+
+After applying the log transformations we plotted the histogram again and observe that the skewness has been reduced and the symmetry has been improved.The transformation does not not always results in a perfect symmetrical shape.
+As seen from the histograms, the log10 transformation worked slightly better than the natural logarithm ln transformation.
+
+Now we can say the preprocessing is complete and the data is ready for statistical analysis.
+
+
+References:<br> 
+*[1] Kaggle.com. 2020. NFL Statistics. [online] Available at: <https://www.kaggle.com/kendallgillies/nflstatistics/home> [Accessed 30 May 2020].
+<br>
+<br>
